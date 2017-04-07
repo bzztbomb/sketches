@@ -50,19 +50,20 @@
                     (send fm-dc draw-ellipse 10 10 30 30)
                     (send fm-dc draw-polygon (list (make-object point% 10 25) (make-object point% 40 25) (make-object point% 25 75)))                              
                     )
-                  width height)) #f height) (* (random-float) pi 2))))
+                  100 100)) #f height) (* (random-float) pi 2))))
 
 (define (gen-new-image-2 reference-image working-image iterations)
   (let-values ([(width height) (flomap-size reference-image)])
   (let ([image working-image])         
     (for ([i iterations])
-      (set! image (gen-new-image reference-image image (simple-stroke (exact-floor (* width 0.1)) (exact-floor (* height 0.1))))))
+      (set! image (gen-new-image reference-image image (simple-stroke (exact-floor (* width 0.05)) (exact-floor (* height 0.05))))))
     image)))
 
 (define (gen-images filename)
   (let ([reference-image (bitmap->flomap (read-bitmap filename))])
     (let-values ([(width height) (flomap-size reference-image)])
-      (let* ([working-image (make-flomap 4 width height 0)]
+      (let* ([working-image (bitmap->flomap (read-bitmap "/Users/brianr/projects/sketches/error00/input/start_image.png"))]
+             ; [working-image (make-flomap 4 width height 0)]
              [pixel-image (flomap-scale reference-image 0.1)]
              [ret `()]
              [image working-image])
