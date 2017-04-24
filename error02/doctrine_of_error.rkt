@@ -5,34 +5,8 @@
 (require racket/draw)
 (require racket/file)
 (require racket/flonum)
-
-(define (ten-percent)
-  (> 2 (random (* 1024 300))))
-
-(define (error fm1 fm2)
-  (for/fold ([len 0])
-            ([value (flomap-values (fmsqr (fm- fm1 fm2)))])
-    (+ len value)))
-
-(define (max-position xs)
-  (define-values (mx mxpos)
-    (for/fold ((mx #f) (mxpos #f)) (((c pos) (in-indexed xs)))
-      (cond
-        [(or (not mx) (> c mx)) (values c pos)]
-        [(= c mx) (if (ten-percent)
-                      (values c pos)
-                      (values mx mxpos))]
-        [else (values mx mxpos)]))) mxpos)
-
-(define (index->coords c w idx)   
-  (values (modulo idx c) (modulo (exact-floor (/ idx c)) w) (exact-floor (/ idx (* w c)))))
-
-(define (max-error-position reference-image working-image)
-  (let-values ([(width height) (flomap-size reference-image)])
-    (let* ([error-values (flomap-values (fmsqr (fm- reference-image working-image)))]
-           [position (max-position error-values)])
-      (index->coords (flomap-components reference-image) width position))))
-
+(require "flomap-utils.rkt")
+        
 (define (flvector-comp-to-byte v c)
   (exact-floor (* (flvector-ref v c) 255.0)))
   
@@ -83,7 +57,7 @@
   ; Find location of lowest error
   (let-values ([(errorc errorx errory) (max-error-position reference-image working-image)]
                [(width height) (flomap-size reference-image)])
-    (printf "pos ~a ~a\n" errorx errory)
+    ; (printf "pos ~a ~a\n" errorx errory)
     (let* ([color (flomap-ref* reference-image errorx errory)]
            [brush-width (exact-floor (* width brush-size))]
            [brush-height (exact-floor (* height brush-size))]
@@ -97,7 +71,7 @@
   (let* ([original-error (error reference-image working-image)]
          [new-image (gen-new-image reference-image working-image brush-size)]
          [new-error (error reference-image new-image)])
-    (printf "new error ~a,  org error ~a\n" new-error original-error)
+    ; (printf "new error ~a,  org error ~a\n" new-error original-error)
     (if (> new-error original-error)
         (gen-new-image-2 reference-image working-image (/ brush-size 2))
         new-image)))
@@ -136,3 +110,12 @@
     (for-each (lambda (file)
                 (gen-images file)) images)))
 
+(define (time-error)
+  (let ([reference-image (bitmap->flomap (read-bitmap "input/img.jpg"))]
+        [working-image (bitmap->flomap (read-bitmap "input/img.start"))])
+    (time (void (error reference-image working-image)))))
+    
+(define (time-max)
+  (let ([reference-image (bitmap->flomap (read-bitmap "input/img.jpg"))]
+        [working-image (bitmap->flomap (read-bitmap "input/img.start"))])
+    (time (max-error-position reference-image working-image))))
