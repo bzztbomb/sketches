@@ -3,12 +3,17 @@
 (require images/flomap)
 (require racket/flonum)
 
+(define (subsq [val1 : Flonum] [val2 : Flonum])  
+    (fl* (fl- val1 val2) (fl- val1 val2)))
+  
+(define fmsubsq (inline-flomap-lift2 'fmsubsq subsq))
+
 (define (ten-percent)
   (> 2 (random (* 1024 300))))
 
 (define (error [fm1 : flomap] [fm2 : flomap])
   (for/fold ([len : Flonum 0.0])
-            ([value (in-flvector (flomap-values (fmsqr (fm- fm1 fm2))))])
+            ([value (in-flvector (flomap-values (fmsubsq fm1 fm2)))])
     (+ len value)))
 
 (define (max-position [xs : FlVector])
@@ -29,9 +34,11 @@
 
 (define (max-error-position [reference-image : flomap] [working-image : flomap])
   (let-values ([(width height) (flomap-size reference-image)])
-    (let* ([error-values (flomap-values (fmsqr (fm- reference-image working-image)))]
+    (let* ([error-values (flomap-values (fmsubsq reference-image working-image))]
            [position (max-position error-values)])
       (index->coords (flomap-components reference-image) width position))))
 
 (provide error)
 (provide max-error-position)
+
+
