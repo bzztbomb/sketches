@@ -54,17 +54,26 @@
                       th)])
       (subflomap fm start-x start-y end-x end-y))))
 
+(define (subregion-error reference-image working-image brush-size x y)
+  (let ([startx (exact-floor (- x brush-size))]
+        [starty (exact-floor (- y brush-size))]
+        [endx (exact-floor (+ x brush-size))]
+        [endy (exact-floor (+ y brush-size))])
+    (error (subflomap reference-image startx starty endx endy)
+           (subflomap working-image startx starty endx endy))))
+
 (define (gen-new-image reference-image working-image brush-size)
   ; Find location of lowest error
   (let-values ([(errorc errorx errory) (max-error-position reference-image working-image)]
                [(width height) (flomap-size reference-image)])
     ; (printf "pos ~a ~a\n" errorx errory)
-    (let ([original-error (error reference-image working-image)]
+    (let* ([subregion-size (* (max width height) brush-size)]
+          [original-error (subregion-error reference-image working-image subregion-size errorx errory)]
           [color (flomap-ref* reference-image errorx errory)])
       (let-values ([(final-image final-brush-size)
                     (for/fold ([new-image #f] [adjusted-brush-size brush-size])
                               ([i (in-naturals)])
-                      #:break (and new-image (< (error reference-image new-image) original-error))
+                      #:break (and new-image (< (subregion-error reference-image new-image subregion-size errorx errory) original-error))
                       (let* ([brush-width (exact-floor (* width adjusted-brush-size))]
                              [brush-height (exact-floor (* height adjusted-brush-size))]
                              [brush (simple-stroke brush-width brush-height color)])
@@ -88,7 +97,7 @@
              [image working-image]
              [ret `()]
              )
-        (for ([i 2])
+        (for ([i 100])
           (for ([j 100])
             (set! image (gen-new-image reference-image image 0.1)))
           (send (flomap->bitmap image) save-file (string-append (path->string (path-replace-extension filename "")) (number->string i) ".png") 'png)
@@ -106,15 +115,3 @@
                                (path-has-extension? file ".jpg"))) files)])
     (for-each (lambda (file)
                 (gen-images file)) images)))
-
-(define (time-error)
-  (let ([reference-image (bitmap->flomap (read-bitmap "input/img.jpg"))]
-        [working-image (bitmap->flomap (read-bitmap "input/img.start"))])
-    (time (void (error reference-image working-image)))))
-    
-(define (time-max)
-  (let ([reference-image (bitmap->flomap (read-bitmap "input/img.jpg"))]
-        [working-image (bitmap->flomap (read-bitmap "input/img.start"))])
-    (time (max-error-position reference-image working-image))))
-
-;(optimization-coach-profile (do-it))
