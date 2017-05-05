@@ -8,6 +8,8 @@
 (require "flomap-utils.rkt")
 (require optimization-coach)
 
+(struct brush-info (image width height color rotate x y))
+
 (define (flvector-comp-to-byte v c)
   (exact-floor (* (flvector-ref v c) 255.0)))
   
@@ -27,17 +29,19 @@
         (make-flomap* 1 1 color)
         (flomap-resize fm (make-even width) (make-even height)))))
     
-(define (simple-stroke width height color)
-  (even-flomap (flomap-trim
-                (flomap-rotate    
-                 (flomap-resize
-                  (flomap-trim (draw-flomap (lambda (fm-dc)
-                                              (send fm-dc set-pen "black" 1 'transparent)
-                                              (send fm-dc set-brush (flvector->color color) 'solid)
-                                              (send fm-dc draw-ellipse 10 10 30 30)
-                                              (send fm-dc draw-polygon (list (make-object point% 10 25) (make-object point% 40 25) (make-object point% 25 75)))
-                                              )
-                                            100 100)) #f height) (* (random-float) pi 2))) color))
+(define (simple-stroke width height color reference-image x y)
+  (let* ([rotate (* (random-float) pi 2)]
+         [image (even-flomap (flomap-trim
+                              (flomap-rotate    
+                               (flomap-resize
+                                (flomap-trim (draw-flomap (lambda (fm-dc)
+                                                            (send fm-dc set-pen "black" 1 'transparent)
+                                                            (send fm-dc set-brush (flvector->color color) 'solid)
+                                                            (send fm-dc draw-ellipse 10 10 30 30)
+                                                            (send fm-dc draw-polygon (list (make-object point% 10 25) (make-object point% 40 25) (make-object point% 25 75)))
+                                                            )
+                                                          100 100)) #f height) rotate)) color)])
+    (brush-info image width height color rotate x y)))
 
 (define (dumb-crop fm width height brush x y)
   (let-values ([(brushw brushh) (flomap-size brush)]
@@ -63,25 +67,26 @@
            (subflomap working-image startx starty endx endy))))
 
 (define (gen-new-image reference-image working-image brush-size)
-  ; Find location of lowest error
-  (let-values ([(errorc errorx errory) (max-error-position reference-image working-image)]
-               [(width height) (flomap-size reference-image)])
-    ; (printf "pos ~a ~a\n" errorx errory)
-    (let* ([subregion-size (* (max width height) brush-size)]
-          [original-error (subregion-error reference-image working-image subregion-size errorx errory)]
-          [color (flomap-ref* reference-image errorx errory)])
-      (let-values ([(final-image final-brush-size)
-                    (for/fold ([new-image #f] [adjusted-brush-size brush-size])
-                              ([i (in-naturals)])
-                      #:break (and new-image (< (subregion-error reference-image new-image subregion-size errorx errory) original-error))
-                      (let* ([brush-width (exact-floor (* width adjusted-brush-size))]
-                             [brush-height (exact-floor (* height adjusted-brush-size))]
-                             [brush (simple-stroke brush-width brush-height color)])
-                        (let-values ([(bw bh) (flomap-size brush)])
-                          (values 
-                           (dumb-crop (flomap-pin working-image errorx errory brush (exact-floor (/ bw 2)) (exact-floor (/ bh 2))) width height brush errorx errory)
-                           (/ adjusted-brush-size 2)))))]) final-image))))
-     
+  (define-values (errorc errorx errory) (max-error-position reference-image working-image))
+  (define-values (width height) (flomap-size reference-image))
+  (define subregion-size (* (max width height) brush-size))
+  (define original-error (subregion-error reference-image working-image subregion-size errorx errory))
+  (define color (flomap-ref* reference-image errorx errory))
+  (define-values (image bs current-brush)
+    (for/fold ([new-image #f] [adjusted-brush-size brush-size] [loop-brush-info #f])
+            ([i (in-naturals)])
+    #:break (and new-image (< (subregion-error reference-image new-image subregion-size errorx errory) original-error))
+    (define brush-width (exact-floor (* width adjusted-brush-size)))
+    (define brush-height (exact-floor (* height adjusted-brush-size)))
+    (define current-brush (simple-stroke brush-width brush-height color reference-image errorx errory))
+    (define brush (brush-info-image current-brush))
+    (define-values (bw bh) (flomap-size brush))
+    (values
+     (dumb-crop (flomap-pin working-image errorx errory brush (exact-floor (/ bw 2)) (exact-floor (/ bh 2))) width height brush errorx errory)
+     (/ adjusted-brush-size 2)
+     current-brush)))
+  (values image current-brush))
+      
 (define (create-work-image filename reference-image)
   (let ([start-file (path-replace-extension filename ".start")])
     (if (file-exists? start-file)
@@ -89,7 +94,7 @@
         (let-values ([(width height) (flomap-size reference-image)])
           (make-flomap 4 width height 0)))))
 
-(define (gen-images filename)
+(define (gen-images filename frames strokes)
   (let ([reference-image (bitmap->flomap (read-bitmap filename))])
     (let-values ([(width height) (flomap-size reference-image)])
       (let* (
@@ -97,9 +102,10 @@
              [image working-image]
              [ret `()]
              )
-        (for ([i 100])
-          (for ([j 100])
-            (set! image (gen-new-image reference-image image 0.1)))
+        (for ([i frames])
+          (for ([j strokes])
+            (let-values ([(new-image brush) (gen-new-image reference-image image 0.1)])
+              (set! image new-image)))
           (send (flomap->bitmap image) save-file (string-append (path->string (path-replace-extension filename "")) (number->string i) ".png") 'png)
           (set! ret (cons (flomap->bitmap image) ret))
           )
@@ -114,4 +120,4 @@
                            (or (path-has-extension? file ".png")
                                (path-has-extension? file ".jpg"))) files)])
     (for-each (lambda (file)
-                (gen-images file)) images)))
+                (gen-images file 100 100)) images)))
