@@ -74,17 +74,17 @@
   (define color (flomap-ref* reference-image errorx errory))
   (define-values (image bs current-brush)
     (for/fold ([new-image #f] [adjusted-brush-size brush-size] [loop-brush-info #f])
-            ([i (in-naturals)])
-    #:break (and new-image (< (subregion-error reference-image new-image subregion-size errorx errory) original-error))
-    (define brush-width (exact-floor (* width adjusted-brush-size)))
-    (define brush-height (exact-floor (* height adjusted-brush-size)))
-    (define current-brush (simple-stroke brush-width brush-height color reference-image errorx errory))
-    (define brush (brush-info-image current-brush))
-    (define-values (bw bh) (flomap-size brush))
-    (values
-     (dumb-crop (flomap-pin working-image errorx errory brush (exact-floor (/ bw 2)) (exact-floor (/ bh 2))) width height brush errorx errory)
-     (/ adjusted-brush-size 2)
-     current-brush)))
+              ([i (in-naturals)])
+      #:break (and new-image (< (subregion-error reference-image new-image subregion-size errorx errory) original-error))
+      (define brush-width (exact-floor (* width adjusted-brush-size)))
+      (define brush-height (exact-floor (* height adjusted-brush-size)))
+      (define current-brush (simple-stroke brush-width brush-height color reference-image errorx errory))
+      (define brush (brush-info-image current-brush))
+      (define-values (bw bh) (flomap-size brush))
+      (values
+       (dumb-crop (flomap-pin working-image errorx errory brush (exact-floor (/ bw 2)) (exact-floor (/ bh 2))) width height brush errorx errory)
+       (/ adjusted-brush-size 2)
+       current-brush)))
   (values image current-brush))
       
 (define (create-work-image filename reference-image)
@@ -95,22 +95,28 @@
           (make-flomap 4 width height 0)))))
 
 (define (gen-images filename frames strokes)
-  (let ([reference-image (bitmap->flomap (read-bitmap filename))])
-    (let-values ([(width height) (flomap-size reference-image)])
-      (let* (
-             [working-image (create-work-image filename reference-image)]
-             [image working-image]
-             [ret `()]
-             )
-        (for ([i frames])
-          (for ([j strokes])
-            (let-values ([(new-image brush) (gen-new-image reference-image image 0.1)])
-              (set! image new-image)))
-          (send (flomap->bitmap image) save-file (string-append (path->string (path-replace-extension filename "")) (number->string i) ".png") 'png)
-          (set! ret (cons (flomap->bitmap image) ret))
-          )
-        ret))))
-
+  (define reference-image (bitmap->flomap (read-bitmap filename)))
+  (define-values (width height) (flomap-size reference-image))
+  (define working-image (create-work-image filename reference-image))
+  (for/fold ([frame-image working-image])
+            ([i (in-naturals)])
+    #:break (>= i frames)
+    (define-values (final-image brush-list)
+      (for/fold ([image frame-image] [brush-list '()])
+                ([j (in-naturals)])
+        #:break (>= j strokes)
+        (define-values (new-image brush) (gen-new-image reference-image image 0.1))      
+        (values new-image (cons brush brush-list))))
+    (define file-prefix (string-append (path->string (path-replace-extension filename "")) (number->string i)))
+    (send (flomap->bitmap final-image) save-file (string-append file-prefix ".png") 'png)
+    (with-output-to-file (string-append file-prefix ".strokes")
+      (lambda () 
+        (for ([b (reverse brush-list)])
+          (printf "~a ~a ~a ~a ~a ~a\n" (brush-info-width b) (brush-info-height b) (brush-info-color b) (brush-info-rotate b) (brush-info-x b) (brush-info-y b)))))
+    final-image    
+    )
+  )
+     
 (define (do-it)
   (let* ([path "input/"]
          [files (find-files (lambda (file)
