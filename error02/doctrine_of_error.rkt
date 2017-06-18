@@ -49,7 +49,7 @@
   (make-color* (flvector-comp-to-byte v 1) (flvector-comp-to-byte v 2) (flvector-comp-to-byte v 3)))
 
 (define (simple-stroke-glob w h color reference-image x y)
-  (define base-radius (* (min w h) 0.45))
+  (define base-radius (* (min w h) 0.45))  
   (define base-degree (* 2 pi (random-float)))
   (define pt1 (pt@ base-radius base-degree))
   (define pt2 (pt@ base-radius (+ base-degree pi)))
@@ -60,19 +60,22 @@
   (define r2 (radius-random))
   (define axis-middle (med 0.5 pt1 pt2))
   (define (make-d) (pt+ axis-middle (pt@ (* axis-len 0.1) (* 2 pi (random-float)))))
-  (define glob-pict (draw-glob (build-glob (flvector->metacolor color) pt1 r1 pt2 r2
-                                         (make-d) (make-d) (random-float) (random-float) (random-float) (random-float)))) 
+  (define result-glob (build-glob (flvector->metacolor color) pt1 r1 pt2 r2
+                                  (make-d) (make-d) (random-float) (random-float) (random-float) (random-float)))
+  (define glob-pict (parameterize ([curve-pict-width w]
+                 [curve-pict-height h])
+    (draw-glob result-glob)))
   (brush-info
    ; TODO: Use (bitmap->flomap (pict->bitmap glob-pict))
    (draw-flomap (lambda (fm-dc)
                   (draw-pict glob-pict fm-dc 0 0))                  
-                  (pict-width glob-pict) (pict-height glob-pict))
+                (pict-width glob-pict) (pict-height glob-pict))
    w h color 0 x y))
 
 (define (simple-stroke w h color reference-image x y)
-    (if (or (zero? w) (zero? h))
-        (brush-info (make-flomap* 1 1 color) w h color 0 x y)
-        (simple-stroke-glob w h color reference-image x y)))
+  (if (or (zero? w) (zero? h))
+      (brush-info (make-flomap* 1 1 color) w h color 0 x y)
+      (simple-stroke-glob w h color reference-image x y)))
 
 (define (dumb-crop fm width height brush x y)
   (let-values ([(brushw brushh) (flomap-size brush)]
@@ -158,3 +161,7 @@
                                (path-has-extension? file ".jpg"))) files)])
     (for-each (lambda (file)
                 (gen-images file 400 25)) images)))
+
+(define (test-it w h)
+  (define reference-image (bitmap->flomap (read-bitmap "input/img.jpg")))
+  (flomap->bitmap (brush-info-image (simple-stroke w h (flvector 1.0 0.5 0.5 0.5) reference-image 0 0))))
