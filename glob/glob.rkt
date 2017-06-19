@@ -3,7 +3,8 @@
 ; An implementation of "Globs" as described by Andrew Glassner
 ; http://www.imaginary-institute.com/resources/TechNote11/TechNote11.html
 
-(provide build-glob draw-glob)
+(provide build-glob draw-glob (struct-out glob))
+
 
 (require (prefix-in pict3d: pict3d))
 (require metapict)

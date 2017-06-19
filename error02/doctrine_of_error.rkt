@@ -25,6 +25,10 @@
       (add1 val)
       val))
 
+(define (even-fm fm)
+  (let-values ([(width height) (flomap-size fm)])
+    (flomap-resize fm (make-even width) (make-even height))))
+
 (define (even-flomap fm color)
   (let-values ([(width height) (flomap-size fm)])
     (if (or (zero? width) (zero? height))
@@ -63,13 +67,10 @@
   (define result-glob (build-glob (flvector->metacolor color) pt1 r1 pt2 r2
                                   (make-d) (make-d) (random-float) (random-float) (random-float) (random-float)))
   (define glob-pict (parameterize ([curve-pict-width w]
-                 [curve-pict-height h])
-    (draw-glob result-glob)))
+                                   [curve-pict-height h])
+                      (draw-glob result-glob)))
   (brush-info
-   ; TODO: Use (bitmap->flomap (pict->bitmap glob-pict))
-   (draw-flomap (lambda (fm-dc)
-                  (draw-pict glob-pict fm-dc 0 0))                  
-                (pict-width glob-pict) (pict-height glob-pict))
+   (even-fm (bitmap->flomap (pict->bitmap glob-pict)))
    w h color 0 x y))
 
 (define (simple-stroke w h color reference-image x y)
@@ -160,7 +161,7 @@
                            (or (path-has-extension? file ".png")
                                (path-has-extension? file ".jpg"))) files)])
     (for-each (lambda (file)
-                (gen-images file 400 25)) images)))
+                (gen-images file 400 50)) images)))
 
 (define (test-it w h)
   (define reference-image (bitmap->flomap (read-bitmap "input/img.jpg")))
